@@ -1,10 +1,10 @@
-# Clúster Vagrant + Ansible con balanceador nginx
+# Vagrant + Ansible cluster with an nginx load balancer
 
-Laboratorio de alta disponibilidad básica: tres máquinas virtuales Ubuntu gestionadas con Vagrant,
-aprovisionadas con Ansible, donde dos servidores web nginx sirven una página estática y un tercer
-nginx actúa como balanceador de carga.
+Basic high-availability lab: three Ubuntu virtual machines managed with Vagrant and provisioned
+with Ansible, where two nginx web servers serve a static page and a third nginx acts as a load
+balancer.
 
-## Arquitectura
+## Architecture
 
 ```
                       host:8080
@@ -23,69 +23,69 @@ nginx actúa como balanceador de carga.
        192.168.56.101            192.168.56.102
 ```
 
-| Máquina       | IP              | Memoria | Rol                                  |
+| Machine       | IP              | Memory  | Role                                 |
 |---------------|-----------------|---------|--------------------------------------|
-| `balanceador` | 192.168.56.100  | 512 MB  | nginx como proxy inverso / balanceo  |
-| `nodo1`       | 192.168.56.101  | 1024 MB | nginx sirviendo `index.html`         |
-| `nodo2`       | 192.168.56.102  | 1024 MB | nginx sirviendo `index.html`         |
+| `balanceador` | 192.168.56.100  | 512 MB  | nginx as reverse proxy / load balancer |
+| `nodo1`       | 192.168.56.101  | 1024 MB | nginx serving `index.html`           |
+| `nodo2`       | 192.168.56.102  | 1024 MB | nginx serving `index.html`           |
 
-La caja utilizada es `ubuntu/jammy64` (Ubuntu 22.04 LTS).
+The base box is `ubuntu/jammy64` (Ubuntu 22.04 LTS).
 
-## Requisitos
+## Requirements
 
 - [Vagrant](https://developer.vagrantup.com/downloads)
 - [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
-- [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/) instalado en el host
-  (Vagrant lo ejecuta como *provisioner*)
+- [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/) installed on the host
+  (Vagrant runs it as a *provisioner*)
 
-## Uso
+## Usage
 
 ```bash
-# Levantar las tres máquinas y ejecutar el aprovisionamiento
+# Bring up the three machines and run provisioning
 vagrant up
 
-# Comprobar el estado
+# Check status
 vagrant status
 
-# Acceder a una máquina
+# SSH into a machine
 vagrant ssh nodo1
 
-# Volver a ejecutar Ansible sobre las máquinas ya creadas
+# Re-run Ansible against the existing machines
 vagrant provision
 
-# Apagar / destruir el entorno
+# Shut down / destroy the environment
 vagrant halt
 vagrant destroy -f
 ```
 
-Una vez aprovisionado, abre <http://localhost:8080> en el navegador: cada recarga debe mostrar
-`Respondiendo desde nodo1` o `Respondiendo desde nodo2`, alternando entre ambos.
+Once provisioned, open <http://localhost:8080> in your browser: each reload should show
+`Respondiendo desde nodo1` or `Respondiendo desde nodo2`, alternating between the two.
 
-## Qué hace el aprovisionamiento
+## What provisioning does
 
-`ansible/playbook.yml` se ejecuta sobre las tres máquinas y contiene tres *plays*:
+`ansible/playbook.yml` runs on all three machines and contains three *plays*:
 
-1. **`hosts: all`** — añade las entradas del clúster (`*.olivia.local`) a `/etc/hosts`,
-   de modo que los nodos se resuelven por nombre además de por IP.
-2. **`hosts: web`** (`nodo1`, `nodo2`) — instala nginx, publica la página que identifica al nodo
-   (generada desde la plantilla `index.html.j2` con `inventory_hostname`) y asegura el servicio
-   arrancado y habilitado.
-3. **`hosts: balanceador`** — instala nginx, elimina el sitio por defecto, despliega
-   `ansible/lb.conf` como `/etc/nginx/conf.d/balanceador.conf` y recarga el servicio.
-   El balanceo es *round-robin* por defecto hacia `nodo1` y `nodo2`.
+1. **`hosts: all`** — adds the cluster entries (`*.olivia.local`) to `/etc/hosts`, so nodes can be
+   resolved by name as well as by IP.
+2. **`hosts: web`** (`nodo1`, `nodo2`) — installs nginx, publishes the page that identifies the node
+   (generated from the `index.html.j2` template using `inventory_hostname`) and makes sure the
+   service is started and enabled.
+3. **`hosts: balanceador`** — installs nginx, removes the default site, deploys
+   `ansible/lb.conf` as `/etc/nginx/conf.d/balanceador.conf` and reloads the service.
+   Load balancing is *round-robin* by default across `nodo1` and `nodo2`.
 
-## Estructura del repositorio
+## Repository structure
 
 ```
 .
-├── Vagrantfile            # Definición de las 3 VM, red privada y puerto reenviado
+├── Vagrantfile            # Defines the 3 VMs, private network and forwarded port
 └── ansible/
-    ├── playbook.yml       # Aprovisionamiento: hosts, webs y balanceador
-    ├── lb.conf            # Configuración nginx del balanceador (upstream + proxy)
-    └── index.html.j2      # Plantilla de la página servida por cada nodo
+    ├── playbook.yml       # Provisioning: hosts, web servers and load balancer
+    ├── lb.conf            # nginx config for the load balancer (upstream + proxy)
+    └── index.html.j2      # Template for the page served by each node
 ```
 
-## Notas
+## Notes
 
-- El puerto 80 del `balanceador` se reenvía al **8080** del host para evitar conflictos.
-- La carpeta `.vagrant/` la genera Vagrant automáticamente y no debe subirse al repositorio.
+- Port 80 on the `balanceador` is forwarded to port **8080** on the host to avoid conflicts.
+- The `.vagrant/` directory is generated automatically by Vagrant and should not be committed.
