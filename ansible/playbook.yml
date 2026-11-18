@@ -1,0 +1,83 @@
+- name: Configurar /etc/hosts en todas las máquinas
+  hosts: all
+  become: true
+  vars:
+    cluster_hosts:
+      - { ip: "192.168.56.100", name: "balanceador" }
+      - { ip: "192.168.56.101", name: "nodo1" }
+      - { ip: "192.168.56.102", name: "nodo2" }
+  tasks:
+    - name: Añadir los nodos del clúster a /etc/hosts
+      ansible.builtin.blockinfile:
+        path: /etc/hosts
+        marker: "# {mark} ANSIBLE CLUSTER OLIVIA"
+        block: |
+          192.168.56.100 balanceador.olivia.local
+          192.168.56.101 nodo1.olivia.local
+          192.168.56.102 nodo2.olivia.local
+          
+
+# 2) Servidores web en nodo1 y nodo2
+- name: Desplegar servidor web (nginx)
+  hosts: web
+  become: true
+  tasks:
+    - name: Instalar nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Publicar página que identifica al nodo
+      ansible.builtin.template:
+        src: index.html.j2
+        dest: /var/www/html/index.html
+        mode: "0644"
+
+    - name: Asegurar nginx arrancado y habilitado
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+
+- name: Desplegar balanceador (nginx)
+  hosts: balanceador
+  become: true
+  vars:
+    backends:
+      - nodo1.olivia.local
+      - nodo2.olivia.local
+  tasks:
+    - name: Instalar nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Eliminar el sitio por defecto
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Recargar nginx
+
+    - name: Configurar el balanceador
+      ansible.builtin.copy:
+        src: lb.conf
+        dest: /etc/nginx/conf.d/balanceador.conf
+        mode: "0644"
+      notify: Recargar nginx
+
+    - name: Asegurar nginx arrancado y habilitado
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+
+  handlers:
+    - name: Recargar nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
